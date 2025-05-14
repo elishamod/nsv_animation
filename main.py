@@ -4,10 +4,10 @@ import numpy as np
 class DualEllipticOrbits(ThreeDScene):
     def construct(self):
         # Independent parameters
-        a1, b1 = 2.5, 2     # ellipse 1 parameters
+        a1, b1 = 3, 2     # ellipse 1 parameters
         T1 = 2.5            # orbital period 1
         a2, b2 = 2.0, 1.5   # ellipse 1 parameters
-        loops1 = 4          # number of complete periods for particle 1
+        loops = 4           # number of complete periods for particle 1
         ball_radius = 0.2
         # ball_resolution = (12, 24)
         ball_resolution = (6, 12)
@@ -27,24 +27,29 @@ class DualEllipticOrbits(ThreeDScene):
         self.add(Dot(ORIGIN, color=WHITE))
 
         # Approximate solution of the Kepler equation (for small eccentricity)
-        def E_from_x(x, e):
-            E = x - e * np.sin(x) + e ** 2 * 0.5 * np.sin(2 * x)
+        def E_from_M(M, e, prec=1e-6):
+            E = M + e * np.sin(M)
+            while abs(E - e * np.sin(E) - M) > prec:
+                E = M + e * np.sin(E)
             return E
+
+        # General ellipse function
+        def ellipse_func(t, a, b, e, T):
+            M = 2 * PI * t / T
+            E = E_from_M(M, e) + PI
+            return a * (e - np.cos(E)), b * np.sin(E)
 
         # First ellipse (XY plane)
         def ellipse1_func(t):
-            x = 2 * PI * t / T1
-            E = E_from_x(x, e1)
-            return np.array([a1 * np.cos(E) + c1, b1 * np.sin(E), 0])
-
-        ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, T1], color=BLUE)
+            x, y = ellipse_func(t, a1, b1, e1, T1)
+            return np.array([x, y, 0])
 
         # Second ellipse (YZ plane)
         def ellipse2_func(t):
-            x = 2 * PI * t / T2
-            E = E_from_x(x, e2)
-            return np.array([0, a2 * np.cos(E) + c2, b2 * np.sin(E)])
+            x, y = ellipse_func(t, a2, b2, e2, T2)
+            return np.array([0, x, y])
 
+        ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, T1], color=BLUE)
         ellipse2 = ParametricFunction(ellipse2_func, t_range=[0, T2], color=GREEN)
 
         # Fast-rendering spheres: low resolution, solid color
@@ -68,7 +73,7 @@ class DualEllipticOrbits(ThreeDScene):
         self.wait(0.5)
 
         self.begin_ambient_camera_rotation(rate=0.05)
-        t_end = loops1 * T1
+        t_end = loops * T1
         self.play(time.animate.increment_value(t_end), run_time=t_end, rate_func=linear)
         self.stop_ambient_camera_rotation()
         self.wait(0.5)
