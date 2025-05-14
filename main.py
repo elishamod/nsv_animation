@@ -9,7 +9,11 @@ class DualEllipticOrbits(ThreeDScene):
         axes = ThreeDAxes()
         self.add(axes)
 
-        # First ellipse: XY-plane, focus at origin
+        # Focus at origin: flat white dot
+        focus = Dot(ORIGIN, color=WHITE)
+        self.add(focus)
+
+        # First ellipse (XY plane)
         a1, b1 = 2.5, 2
         c1 = np.sqrt(a1**2 - b1**2)
 
@@ -21,7 +25,7 @@ class DualEllipticOrbits(ThreeDScene):
 
         ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, 1], color=BLUE)
 
-        # Second ellipse: YZ-plane, focus at origin
+        # Second ellipse (YZ plane)
         a2, b2 = 2.5, 1.5
         c2 = np.sqrt(a2**2 - b2**2)
 
@@ -33,31 +37,29 @@ class DualEllipticOrbits(ThreeDScene):
 
         ellipse2 = ParametricFunction(ellipse2_func, t_range=[0, 1], color=BLUE)
 
-        # Focus: white flat dot at origin
-        focus = Dot(ORIGIN, color=WHITE)
+        # Create smooth red spheres (higher resolution)
+        ball1 = Sphere(radius=0.3, resolution=(64, 64)).set_color(RED)
+        ball2 = Sphere(radius=0.3, resolution=(64, 64)).set_color(RED)
 
-        # Red shaded circles to simulate spheres
-        red_ball_1 = Circle(radius=0.3, color=RED, fill_opacity=1).move_to(ellipse1_func(0))
-        red_ball_1.set_shading(0.8)
-        red_ball_2 = Circle(radius=0.3, color=RED, fill_opacity=1).move_to(ellipse2_func(0))
-        red_ball_2.set_shading(0.8)
+        ball1.move_to(ellipse1_func(0))
+        ball2.move_to(ellipse2_func(0))
 
         # Time tracker
         time = ValueTracker(0)
 
-        # Motion updaters
-        red_ball_1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value() % 1)))
-        red_ball_2.add_updater(lambda m: m.move_to(ellipse2_func(time.get_value() % 1)))
+        # Add updaters for motion
+        ball1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value() % 1)))
+        ball2.add_updater(lambda m: m.move_to(ellipse2_func(time.get_value() % 1)))
 
-        # Build scene
-        self.play(Create(ellipse1), FadeIn(focus), run_time=2)
-        self.add(red_ball_1)
+        # Animate
+        self.play(Create(ellipse1), run_time=2)
+        self.add(ball1)
         self.wait(0.5)
+
         self.play(Create(ellipse2), run_time=2)
-        self.add(red_ball_2)
+        self.add(ball2)
         self.wait(0.5)
 
-        # Animate movement + camera rotation
         self.begin_ambient_camera_rotation(rate=0.1)
         self.play(time.animate.increment_value(5), run_time=15, rate_func=linear)
         self.stop_ambient_camera_rotation()
