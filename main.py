@@ -27,6 +27,7 @@ class DualEllipticOrbits(ThreeDScene):
         self.add(Dot(ORIGIN, color=WHITE))
 
         # Approximate solution of the Kepler equation (for small eccentricity)
+        # Solving the equation M = E - e * sin(E)
         def E_from_M(M, e, prec=1e-6):
             E = M + e * np.sin(M)
             while abs(E - e * np.sin(E) - M) > prec:
@@ -35,8 +36,8 @@ class DualEllipticOrbits(ThreeDScene):
 
         # General ellipse function
         def ellipse_func(t, a, b, e, T):
-            M = 2 * PI * t / T
-            E = E_from_M(M, e) + PI
+            M = 2 * PI * t / T - PI
+            E = E_from_M(M, e)
             return a * (e - np.cos(E)), b * np.sin(E)
 
         # First ellipse (XY plane)
