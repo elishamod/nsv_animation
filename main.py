@@ -7,7 +7,7 @@ T1 = 3.0            # orbital period 1
 a2, b2 = 2.0, 1.5   # ellipse 2 parameters
 ball_radius = 0.2
 # Animation parameters
-loops = 3           # number of complete periods for particle 1
+loops = 2           # number of complete periods for particle 1
 ball_resolution = (4, 8)
 phi0, theta0 = 75 * DEGREES, 20 * DEGREES
 camera_rotation_rate = 0.1
@@ -53,6 +53,14 @@ def distance_at_time(t):
     p1 = ellipse1_func(t)
     p2 = ellipse2_func(t)
     return np.linalg.norm(p1 - p2)
+
+
+def rotation_about_y(theta):
+    return np.array([
+        [np.cos(theta), 0, np.sin(theta)],
+        [0, 1, 0],
+        [-np.sin(theta), 0, np.cos(theta)],
+    ])
 
 
 class DualEllipticOrbitsWithLine(ThreeDScene):
@@ -197,3 +205,67 @@ class DualEllipticOrbitsWithLine(ThreeDScene):
         
         self.stop_ambient_camera_rotation()
         self.wait(0.6)
+
+
+class DualEllipticOrbitsWithPrecession(ThreeDScene):
+    def construct(self):
+        self.set_camera_orientation(phi=phi0, theta=theta0)
+        axes = ThreeDAxes()
+        self.add(axes)
+        self.add(Dot(ORIGIN, color=WHITE))
+
+        # Time tracker
+        time = ValueTracker(0)
+        precession_rate = 0.02  # rotations per second (i.e., per time unit)
+
+        # First orbit: static
+        ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, T1], color=BLUE)
+        ball1 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(RED)
+        ball1.move_to(ellipse1_func(0))
+        ball1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value())))
+
+        # Second orbit: rotating ellipse
+        base_orbit = ParametricFunction(ellipse2_func, t_range=[0, T2], color=GREEN)
+        orbit_path = base_orbit.copy()
+
+        def update_orbit_path(mob):
+            angle = 2 * PI * precession_rate * time.get_value()
+            rotated = base_orbit.copy()
+            rotated.rotate(angle, axis=Y_AXIS, about_point=ORIGIN)
+            mob.become(rotated)
+
+        orbit_path.add_updater(update_orbit_path)
+
+
+        # Moving ball on the rotating second orbit
+        ball2 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(ORANGE)
+
+        def get_rotated_pos(t):
+            angle = 2 * PI * precession_rate * t
+            pos = ellipse2_func(t)
+            rotation_matrix = rotation_about_y(angle)
+            return rotation_matrix @ pos
+
+        ball2.move_to(get_rotated_pos(0))
+        ball2.add_updater(lambda m: m.move_to(get_rotated_pos(time.get_value())))
+
+        # Connecting line
+        line = Line3D(start=ball1.get_center(), end=ball2.get_center(), color=YELLOW, thickness=0.02)
+        def update_line(line):
+            p1 = ellipse1_func(time.get_value())
+            p2 = get_rotated_pos(time.get_value())
+            new_line = Line3D(start=p1, end=p2, color=YELLOW, thickness=0.02)
+            line.become(new_line)
+            return line
+
+        self.add(ball1, ball2, ellipse1, orbit_path, line)
+        self.wait(0.8)
+        # self.play(FadeIn(line))
+        line.add_updater(update_line)
+
+        self.begin_ambient_camera_rotation(rate=camera_rotation_rate)
+
+        self.play(time.animate.increment_value(t_end), run_time=t_end, rate_func=linear)
+        self.stop_ambient_camera_rotation()
+        self.wait(0.6)
+
