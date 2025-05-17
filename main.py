@@ -1,12 +1,13 @@
 from manim import *
 import numpy as np
+
 # Independent geometric parameters
 a1, b1 = 2.5, 2.0   # ellipse 1 parameters
 T1 = 3.0            # orbital period 1
-a2, b2 = 2.0, 1.5   # ellipse 1 parameters
+a2, b2 = 2.0, 1.5   # ellipse 2 parameters
 ball_radius = 0.2
 # Animation parameters
-loops = 5           # number of complete periods for particle 1
+loops = 2           # number of complete periods for particle 1
 ball_resolution = (6, 12)
 phi0, theta0 = 75 * DEGREES, 20 * DEGREES
 camera_rotation_rate = 0.1
@@ -47,15 +48,22 @@ def ellipse2_func(t):
     return np.array([0, x, y])
 
 
-class DualEllipticOrbits(ThreeDScene):
+# Calculate distance between two points on the orbits at time t
+def distance_at_time(t):
+    p1 = ellipse1_func(t)
+    p2 = ellipse2_func(t)
+    return np.linalg.norm(p1 - p2)
+
+
+class DualEllipticOrbitsWithLine(ThreeDScene):
     def construct(self):
         # 3D axes
         self.set_camera_orientation(phi=phi0, theta=theta0)
-        self.add(ThreeDAxes())
+        axes = ThreeDAxes()
+        self.add(axes)
 
         # Origin marker
         self.add(Dot(ORIGIN, color=WHITE))
-
 
         ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, T1], color=BLUE)
         ellipse2 = ParametricFunction(ellipse2_func, t_range=[0, T2], color=GREEN)
@@ -66,10 +74,36 @@ class DualEllipticOrbits(ThreeDScene):
         ball1.move_to(ellipse1_func(0))
         ball2.move_to(ellipse2_func(0))
 
+        # Create distance line connecting the balls
+        line = Line3D(
+            start=ball1.get_center(),
+            end=ball2.get_center(),
+            color=YELLOW,
+            thickness=0.03
+        )
+
         # Time tracker
         time = ValueTracker(0)
+        
+        # Add updaters to the balls and line
         ball1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value())))
         ball2.add_updater(lambda m: m.move_to(ellipse2_func(time.get_value())))
+        
+        # For the line, we need to update both endpoints
+        def update_line(line):
+            p1 = ellipse1_func(time.get_value())
+            p2 = ellipse2_func(time.get_value())
+            # Since we can't directly update Line3D endpoints, recreate it
+            new_line = Line3D(
+                start=p1,
+                end=p2,
+                color=YELLOW,
+                thickness=0.03
+            )
+            line.become(new_line)
+            return line
+        
+        line.add_updater(update_line)
 
         # Animate everything
         self.play(Create(ellipse1), run_time=2)
@@ -78,47 +112,12 @@ class DualEllipticOrbits(ThreeDScene):
         self.play(Create(ellipse2), run_time=2)
         self.play(FadeIn(ball2))
         self.wait(0.5)
-
-        self.begin_ambient_camera_rotation(rate=camera_rotation_rate)
-        self.play(time.animate.increment_value(t_end), run_time=t_end, rate_func=linear)
-        self.stop_ambient_camera_rotation()
-        self.wait(0.5)
-
-
-class DualEllipticOrbits(ThreeDScene):
-    def construct(self):
-        # 3D axes
-        self.set_camera_orientation(phi=phi0, theta=theta0)
-        self.add(ThreeDAxes())
-
-        # Origin marker
-        self.add(Dot(ORIGIN, color=WHITE))
-
-
-        ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, T1], color=BLUE)
-        ellipse2 = ParametricFunction(ellipse2_func, t_range=[0, T2], color=GREEN)
-
-        # Fast-rendering spheres: low resolution, solid color
-        ball1 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(RED)
-        ball2 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(ORANGE)
-        ball1.move_to(ellipse1_func(0))
-        ball2.move_to(ellipse2_func(0))
-
-        # Time tracker
-        time = ValueTracker(0)
-        ball1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value())))
-        ball2.add_updater(lambda m: m.move_to(ellipse2_func(time.get_value())))
-
-        # Animate everything
-        self.play(Create(ellipse1), run_time=2)
-        self.play(FadeIn(ball1))
-        self.wait(0.5)
-        self.play(Create(ellipse2), run_time=2)
-        self.play(FadeIn(ball2))
+        
+        # Add and animate the connecting line
+        self.add(line)
         self.wait(0.5)
 
         self.begin_ambient_camera_rotation(rate=camera_rotation_rate)
         self.play(time.animate.increment_value(t_end), run_time=t_end, rate_func=linear)
         self.stop_ambient_camera_rotation()
         self.wait(0.5)
-
