@@ -7,8 +7,8 @@ T1 = 3.0            # orbital period 1
 a2, b2 = 2.0, 1.5   # ellipse 2 parameters
 ball_radius = 0.2
 # Animation parameters
-loops = 2           # number of complete periods for particle 1
-ball_resolution = (6, 12)
+loops = 3           # number of complete periods for particle 1
+ball_resolution = (4, 8)
 phi0, theta0 = 75 * DEGREES, 20 * DEGREES
 camera_rotation_rate = 0.1
 # Dependent parameters
@@ -79,7 +79,7 @@ class DualEllipticOrbitsWithLine(ThreeDScene):
             start=ball1.get_center(),
             end=ball2.get_center(),
             color=YELLOW,
-            thickness=0.03
+            thickness=0.02
         )
 
         # Time tracker
@@ -98,26 +98,103 @@ class DualEllipticOrbitsWithLine(ThreeDScene):
                 start=p1,
                 end=p2,
                 color=YELLOW,
-                thickness=0.03
+                thickness=0.02
             )
             line.become(new_line)
             return line
         
         line.add_updater(update_line)
+        
+        # Calculate distance data for the entire animation in advance
+        num_points = loops * 80  # Number of points to sample for the graph
+        t_values = np.linspace(0, t_end, num_points)
+        distances = [distance_at_time(t) for t in t_values]
+        max_dist = max(distances) * 1.1  # Add 10% margin
+        
+        # Create the axes for the distance plot
+        plot_width, plot_height = 4, 2.5
+        distance_axes = Axes(
+            x_range=[0, t_end, t_end/4],
+            y_range=[0, max_dist, max_dist/4],
+            x_length=plot_width,
+            y_length=plot_height,
+            axis_config={"include_tip": False, "color": WHITE},
+        )
+        
+        # Add labels to the axes
+        x_label = Text("Time", font_size=20).next_to(distance_axes.x_axis, DOWN, buff=0.2)
+        y_label = Text("Distance", font_size=20).next_to(distance_axes.y_axis, LEFT, buff=-0.3).rotate(PI/2)
+        
+        # Position the plot in the upper right corner
+        plot_group = VGroup(distance_axes, x_label, y_label)
+        plot_group.to_corner(UR, buff=0.5)
+        
+        # Create a background for better visibility
+        background = Rectangle(
+            width=plot_width + 0.8,
+            height=plot_height + 0.8,
+            fill_color=BLACK,
+            fill_opacity=0.7,
+            stroke_width=1,
+            stroke_color=WHITE
+        )
+        background.move_to(plot_group.get_center())
+        
+        # Add title to the plot
+        title = Text("Distance vs Time", font_size=24)
+        title.next_to(background, UP, buff=0.1)
+        
+        # Pre-create the full distance graph for efficiency
+        graph_points = [distance_axes.coords_to_point(t, d) for t, d in zip(t_values, distances)]
+        distance_graph = VMobject(color=YELLOW, stroke_width=2)
+        distance_graph.set_points_as_corners(graph_points)
+        
+        # Create the tracking dot
+        tracking_dot = Dot(color=RED)
+        tracking_dot.move_to(graph_points[0])
 
+        # Update function for the tracking dot and distance value display
+        def update_tracking_elements(mob, alpha):
+            # Find the current time based on animation progress
+            current_time = alpha * t_end
+            # Find the closest point in our pre-computed values
+            idx = int(alpha * (num_points - 1))
+            # Update the tracking dot position
+            tracking_dot.move_to(graph_points[idx])
+        
+        # Add all the fixed elements to the scene
+        self.add_fixed_in_frame_mobjects(background, title, distance_axes, x_label, y_label)
+        
         # Animate everything
-        self.play(Create(ellipse1), run_time=2)
+        self.play(Create(ellipse1), run_time=1.5)
         self.play(FadeIn(ball1))
-        self.wait(0.5)
-        self.play(Create(ellipse2), run_time=2)
+        self.wait(0.4)
+        self.play(Create(ellipse2), run_time=1.5)
         self.play(FadeIn(ball2))
-        self.wait(0.5)
+        self.wait(0.4)
         
         # Add and animate the connecting line
-        self.add(line)
-        self.wait(0.5)
-
+        self.play(FadeIn(line))
+        self.wait(0.4)
+        
+        # Add the distance plot elements and prepare for animation
+        self.add_fixed_in_frame_mobjects(tracking_dot)
+        
+        # Start the main animation with the distance graph creation
         self.begin_ambient_camera_rotation(rate=camera_rotation_rate)
-        self.play(time.animate.increment_value(t_end), run_time=t_end, rate_func=linear)
+        
+        # Create an animation for drawing the distance graph while moving the objects
+        self.add_fixed_in_frame_mobjects(distance_graph)
+        self.play(
+            time.animate.increment_value(t_end),
+            Create(distance_graph),
+            UpdateFromAlphaFunc(tracking_dot, update_tracking_elements),
+            run_time=t_end, 
+            rate_func=linear
+        )
+        
+        # Add the completed graph as a fixed element
+        self.add_fixed_in_frame_mobjects(distance_graph)
+        
         self.stop_ambient_camera_rotation()
-        self.wait(0.5)
+        self.wait(0.6)
