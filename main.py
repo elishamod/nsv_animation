@@ -103,8 +103,6 @@ class DualEllipticOrbitsWithLine(ThreeDScene):
             line.become(new_line)
             return line
         
-        line.add_updater(update_line)
-        
         # Calculate distance data for the entire animation in advance
         num_points = loops * 80  # Number of points to sample for the graph
         t_values = np.linspace(0, t_end, num_points)
@@ -176,6 +174,7 @@ class DualEllipticOrbitsWithLine(ThreeDScene):
         # Add and animate the connecting line
         self.play(FadeIn(line))
         self.wait(0.4)
+        line.add_updater(update_line)
         
         # Add the distance plot elements and prepare for animation
         self.add_fixed_in_frame_mobjects(tracking_dot)
