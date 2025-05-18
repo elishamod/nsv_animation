@@ -6,9 +6,9 @@ a1, b1 = 2.5, 2.0   # ellipse 1 parameters
 T1 = 3.0            # orbital period 1
 a2, b2 = 2.0, 1.5   # ellipse 2 parameters
 ball_radius = 0.2
-precession_rate = 0.02  # rotations per second (i.e., per time unit)
+precession_rate = 0.01  # rotations per second (i.e., per time unit)
 # Animation parameters
-loops = 2           # number of complete periods for particle 1
+loops = 11           # number of complete periods for particle 1
 ball_resolution = (4, 8)
 phi0, theta0 = 75 * DEGREES, 20 * DEGREES
 camera_rotation_rate = 0.1
@@ -19,7 +19,6 @@ e1 = c1 / a1
 e2 = c2 / a2
 T2 = T1 * (a2 / a1) ** 1.5
 t_end = loops * T1
-theta_f = theta0 + camera_rotation_rate * t_end * DEGREES
 
 
 # Solution of the Kepler equation M = E - e * sin(E)
@@ -76,13 +75,13 @@ def get_rotated_pos(t):
 
 def create_distance_graph(precession=False):
     # Calculate distance data for the entire animation in advance
-    num_points = loops * 80  # Number of points to sample for the graph
+    num_points = loops * 100  # Number of points to sample for the graph
     t_values = np.linspace(0, t_end, num_points)
     distances = [distance_at_time(t, precession=precession) for t in t_values]
     max_dist = max(distances) * 1.1  # Add 10% margin
 
     # Create the axes for the distance plot
-    plot_width, plot_height = 4, 2.5
+    plot_width, plot_height = 4, 2.3
     distance_axes = Axes(
         x_range=[0, t_end, t_end / 4],
         y_range=[0, max_dist, max_dist / 4],
@@ -92,7 +91,7 @@ def create_distance_graph(precession=False):
     )
 
     # Add labels to the axes
-    x_label = Text("Time", font_size=20).next_to(distance_axes.x_axis, DOWN, buff=0.2)
+    x_label = Text("Time", font_size=20).next_to(distance_axes.x_axis, DOWN, buff=0.1)
     y_label = Text("Distance", font_size=20).next_to(distance_axes.y_axis, LEFT, buff=-0.3).rotate(PI / 2)
 
     # Position the plot in the upper left corner
@@ -102,7 +101,7 @@ def create_distance_graph(precession=False):
     # Create a background for better visibility
     background = Rectangle(
         width=plot_width + 0.8,
-        height=plot_height + 0.8,
+        height=plot_height + 0.6,
         fill_color=BLACK,
         fill_opacity=0.8,
         stroke_width=1,
@@ -132,37 +131,27 @@ def create_distance_graph(precession=False):
 
 class DualEllipticOrbits(ThreeDScene):
     def construct(self):
-        # 3D axes
         self.set_camera_orientation(phi=phi0, theta=theta0)
         axes = ThreeDAxes()
         self.add(axes)
         self.add(Dot(ORIGIN, color=WHITE))
-
-        ellipse1 = ParametricFunction(ellipse1_func, t_range=(0.0, T1), color=BLUE)
-        ellipse2 = ParametricFunction(ellipse2_func, t_range=(0.0, T2), color=GREEN)
-
-        # Fast-rendering spheres: low resolution, solid color
-        ball1 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(RED)
-        ball2 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(ORANGE)
-        ball1.move_to(ellipse1_func(0))
-        ball2.move_to(ellipse2_func(0))
-
-        # Create distance line connecting the balls
-        line = Line3D(
-            start=ball1.get_center(),
-            end=ball2.get_center(),
-            color=YELLOW,
-            thickness=0.02
-        )
-
-        # Time tracker
         time = ValueTracker(0)
-        
-        # Add updaters to the balls and line
+
+        # First orbit: static
+        ellipse1 = ParametricFunction(ellipse1_func, t_range=(0.0, T1), color=BLUE)
+        ball1 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(RED)
+        ball1.move_to(ellipse1_func(0))
         ball1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value())))
+
+        # Second orbit: static
+        ellipse2 = ParametricFunction(ellipse2_func, t_range=(0.0, T2), color=GREEN)
+        ball2 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(ORANGE)
+        ball2.move_to(ellipse2_func(0))
         ball2.add_updater(lambda m: m.move_to(ellipse2_func(time.get_value())))
         
         # Connecting line
+        line = Line3D(start=ball1.get_center(), end=ball2.get_center(), color=YELLOW, thickness=0.02)
+
         def update_line(line):
             p1 = ellipse1_func(time.get_value())
             p2 = ellipse2_func(time.get_value())
@@ -170,7 +159,8 @@ class DualEllipticOrbits(ThreeDScene):
             line.become(new_line)
             return line
 
-        distance_graph, distance_axes, background, title, x_label, y_label, tracking_dot, update_tracking_dot = create_distance_graph()
+        (distance_graph, distance_axes, background, title, x_label,y_label,
+         tracking_dot, update_tracking_dot) = create_distance_graph(precession=False)
 
         # Add all the fixed elements to the scene
         self.add_fixed_in_frame_mobjects(background, title, distance_axes, x_label, y_label)
@@ -208,7 +198,7 @@ class DualEllipticOrbits(ThreeDScene):
         self.add_fixed_in_frame_mobjects(distance_graph)
         
         self.stop_ambient_camera_rotation()
-        self.wait(0.6)
+        self.wait(1.0)
 
 
 class DualEllipticOrbitsWithPrecession(ThreeDScene):
@@ -217,18 +207,16 @@ class DualEllipticOrbitsWithPrecession(ThreeDScene):
         axes = ThreeDAxes()
         self.add(axes)
         self.add(Dot(ORIGIN, color=WHITE))
-
-        # Time tracker
         time = ValueTracker(0)
 
         # First orbit: static
-        ellipse1 = ParametricFunction(ellipse1_func, t_range=[0, T1], color=BLUE)
+        ellipse1 = ParametricFunction(ellipse1_func, t_range=(0.0, T1), color=BLUE)
         ball1 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(RED)
         ball1.move_to(ellipse1_func(0))
         ball1.add_updater(lambda m: m.move_to(ellipse1_func(time.get_value())))
 
         # Second orbit: rotating ellipse
-        base_orbit = ParametricFunction(ellipse2_func, t_range=[0, T2], color=GREEN)
+        base_orbit = ParametricFunction(ellipse2_func, t_range=(0.0, T2), color=GREEN)
         orbit_path = base_orbit.copy()
 
         def update_orbit_path(mob):
@@ -241,12 +229,12 @@ class DualEllipticOrbitsWithPrecession(ThreeDScene):
 
         # Moving ball on the rotating second orbit
         ball2 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(ORANGE)
-
         ball2.move_to(get_rotated_pos(0))
         ball2.add_updater(lambda m: m.move_to(get_rotated_pos(time.get_value())))
 
         # Connecting line
         line = Line3D(start=ball1.get_center(), end=ball2.get_center(), color=YELLOW, thickness=0.02)
+
         def update_line(line):
             p1 = ellipse1_func(time.get_value())
             p2 = get_rotated_pos(time.get_value())
@@ -262,12 +250,12 @@ class DualEllipticOrbitsWithPrecession(ThreeDScene):
 
         self.add(ball1, ball2, ellipse1, orbit_path, line)
         self.wait(0.8)
-        # self.play(FadeIn(line))
         line.add_updater(update_line)
 
         # Add the distance plot elements and prepare for animation
         self.add_fixed_in_frame_mobjects(tracking_dot)
-
+        
+        # Start the main animation with the distance graph creation
         self.begin_ambient_camera_rotation(rate=camera_rotation_rate)
         
         # Create an animation for drawing the distance graph while moving the objects
@@ -284,5 +272,5 @@ class DualEllipticOrbitsWithPrecession(ThreeDScene):
         self.add_fixed_in_frame_mobjects(distance_graph)
 
         self.stop_ambient_camera_rotation()
-        self.wait(0.6)
+        self.wait(1.0)
 
