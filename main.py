@@ -74,14 +74,68 @@ def get_rotated_pos(t):
     return rotation_matrix @ pos
 
 
-class DualEllipticOrbitsWithLine(ThreeDScene):
+def create_distance_graph(precession=False):
+    # Calculate distance data for the entire animation in advance
+    num_points = loops * 80  # Number of points to sample for the graph
+    t_values = np.linspace(0, t_end, num_points)
+    distances = [distance_at_time(t, precession=precession) for t in t_values]
+    max_dist = max(distances) * 1.1  # Add 10% margin
+
+    # Create the axes for the distance plot
+    plot_width, plot_height = 4, 2.5
+    distance_axes = Axes(
+        x_range=[0, t_end, t_end / 4],
+        y_range=[0, max_dist, max_dist / 4],
+        x_length=plot_width,
+        y_length=plot_height,
+        axis_config={"include_tip": False, "color": WHITE},
+    )
+
+    # Add labels to the axes
+    x_label = Text("Time", font_size=20).next_to(distance_axes.x_axis, DOWN, buff=0.2)
+    y_label = Text("Distance", font_size=20).next_to(distance_axes.y_axis, LEFT, buff=-0.3).rotate(PI / 2)
+
+    # Position the plot in the upper left corner
+    plot_group = VGroup(distance_axes, x_label, y_label)
+    plot_group.to_corner(UL, buff=0.5)
+
+    # Create a background for better visibility
+    background = Rectangle(
+        width=plot_width + 0.8,
+        height=plot_height + 0.8,
+        fill_color=BLACK,
+        fill_opacity=0.8,
+        stroke_width=1,
+        stroke_color=WHITE
+    )
+    background.move_to(plot_group.get_center())
+
+    # Add title to the plot
+    title = Text("Distance vs Time", font_size=24)
+    title.next_to(background, UP, buff=0.1)
+
+    # Pre-create the full distance graph for efficiency
+    graph_points = [distance_axes.coords_to_point(t, d) for t, d in zip(t_values, distances)]
+    distance_graph = VMobject(color=YELLOW, stroke_width=2)
+    distance_graph.set_points_as_corners(graph_points)
+
+    # Create the tracking dot
+    tracking_dot = Dot(color=RED)
+    tracking_dot.move_to(graph_points[0])
+
+    def update_tracking_dot(mob, alpha):
+        idx = int(alpha * (num_points - 1))
+        tracking_dot.move_to(graph_points[idx])
+
+    return distance_graph, distance_axes, background, title, x_label, y_label, tracking_dot, update_tracking_dot
+
+
+class DualEllipticOrbits(ThreeDScene):
     def construct(self):
         # 3D axes
         self.set_camera_orientation(phi=phi0, theta=theta0)
         axes = ThreeDAxes()
         self.add(axes)
-
-        # Origin marker
         self.add(Dot(ORIGIN, color=WHITE))
 
         ellipse1 = ParametricFunction(ellipse1_func, t_range=(0.0, T1), color=BLUE)
@@ -115,64 +169,9 @@ class DualEllipticOrbitsWithLine(ThreeDScene):
             new_line = Line3D(start=p1, end=p2, color=YELLOW, thickness=0.02)
             line.become(new_line)
             return line
-        
-        # Calculate distance data for the entire animation in advance
-        num_points = loops * 80  # Number of points to sample for the graph
-        t_values = np.linspace(0, t_end, num_points)
-        distances = [distance_at_time(t) for t in t_values]
-        max_dist = max(distances) * 1.1  # Add 10% margin
-        
-        # Create the axes for the distance plot
-        plot_width, plot_height = 4, 2.5
-        distance_axes = Axes(
-            x_range=[0, t_end, t_end/4],
-            y_range=[0, max_dist, max_dist/4],
-            x_length=plot_width,
-            y_length=plot_height,
-            axis_config={"include_tip": False, "color": WHITE},
-        )
-        
-        # Add labels to the axes
-        x_label = Text("Time", font_size=20).next_to(distance_axes.x_axis, DOWN, buff=0.2)
-        y_label = Text("Distance", font_size=20).next_to(distance_axes.y_axis, LEFT, buff=-0.3).rotate(PI/2)
-        
-        # Position the plot in the upper left corner
-        plot_group = VGroup(distance_axes, x_label, y_label)
-        plot_group.to_corner(UL, buff=0.5)
-        
-        # Create a background for better visibility
-        background = Rectangle(
-            width=plot_width + 0.8,
-            height=plot_height + 0.8,
-            fill_color=BLACK,
-            fill_opacity=0.7,
-            stroke_width=1,
-            stroke_color=WHITE
-        )
-        background.move_to(plot_group.get_center())
-        
-        # Add title to the plot
-        title = Text("Distance vs Time", font_size=24)
-        title.next_to(background, UP, buff=0.1)
-        
-        # Pre-create the full distance graph for efficiency
-        graph_points = [distance_axes.coords_to_point(t, d) for t, d in zip(t_values, distances)]
-        distance_graph = VMobject(color=YELLOW, stroke_width=2)
-        distance_graph.set_points_as_corners(graph_points)
-        
-        # Create the tracking dot
-        tracking_dot = Dot(color=RED)
-        tracking_dot.move_to(graph_points[0])
 
-        # Update function for the tracking dot
-        def update_tracking_dot(mob, alpha):
-            # Find the current time based on animation progress
-            current_time = alpha * t_end
-            # Find the closest point in our pre-computed values
-            idx = int(alpha * (num_points - 1))
-            # Update the tracking dot position
-            tracking_dot.move_to(graph_points[idx])
-        
+        distance_graph, distance_axes, background, title, x_label, y_label, tracking_dot, update_tracking_dot = create_distance_graph()
+
         # Add all the fixed elements to the scene
         self.add_fixed_in_frame_mobjects(background, title, distance_axes, x_label, y_label)
         
@@ -240,7 +239,6 @@ class DualEllipticOrbitsWithPrecession(ThreeDScene):
 
         orbit_path.add_updater(update_orbit_path)
 
-
         # Moving ball on the rotating second orbit
         ball2 = Sphere(radius=ball_radius, resolution=ball_resolution).set_color(ORANGE)
 
@@ -256,63 +254,9 @@ class DualEllipticOrbitsWithPrecession(ThreeDScene):
             line.become(new_line)
             return line
 
-        # Calculate distance data for the entire animation in advance
-        num_points = loops * 80  # Number of points to sample for the graph
-        t_values = np.linspace(0, t_end, num_points)
-        distances = [distance_at_time(t, precession=True) for t in t_values]
-        max_dist = max(distances) * 1.1  # Add 10% margin
-        
-        # Create the axes for the distance plot
-        plot_width, plot_height = 4, 2.5
-        distance_axes = Axes(
-            x_range=[0, t_end, t_end/4],
-            y_range=[0, max_dist, max_dist/4],
-            x_length=plot_width,
-            y_length=plot_height,
-            axis_config={"include_tip": False, "color": WHITE},
-        )
-        
-        # Add labels to the axes
-        x_label = Text("Time", font_size=20).next_to(distance_axes.x_axis, DOWN, buff=0.2)
-        y_label = Text("Distance", font_size=20).next_to(distance_axes.y_axis, LEFT, buff=-0.3).rotate(PI/2)
-        
-        # Position the plot in the upper left corner
-        plot_group = VGroup(distance_axes, x_label, y_label)
-        plot_group.to_corner(UL, buff=0.5)
-        
-        # Create a background for better visibility
-        background = Rectangle(
-            width=plot_width + 0.8,
-            height=plot_height + 0.8,
-            fill_color=BLACK,
-            fill_opacity=0.7,
-            stroke_width=1,
-            stroke_color=WHITE
-        )
-        background.move_to(plot_group.get_center())
-        
-        # Add title to the plot
-        title = Text("Distance vs Time", font_size=24)
-        title.next_to(background, UP, buff=0.1)
-        
-        # Pre-create the full distance graph for efficiency
-        graph_points = [distance_axes.coords_to_point(t, d) for t, d in zip(t_values, distances)]
-        distance_graph = VMobject(color=YELLOW, stroke_width=2)
-        distance_graph.set_points_as_corners(graph_points)
-        
-        # Create the tracking dot
-        tracking_dot = Dot(color=RED)
-        tracking_dot.move_to(graph_points[0])
+        (distance_graph, distance_axes, background, title, x_label,y_label,
+         tracking_dot, update_tracking_dot) = create_distance_graph(precession=True)
 
-        # Update function for the tracking dot
-        def update_tracking_dot(mob, alpha):
-            # Find the current time based on animation progress
-            current_time = alpha * t_end
-            # Find the closest point in our pre-computed values
-            idx = int(alpha * (num_points - 1))
-            # Update the tracking dot position
-            tracking_dot.move_to(graph_points[idx])
-        
         # Add all the fixed elements to the scene
         self.add_fixed_in_frame_mobjects(background, title, distance_axes, x_label, y_label)
 
